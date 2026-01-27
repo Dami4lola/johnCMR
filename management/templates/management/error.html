@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Access Error</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        .error-box { border: 1px solid #cc0000; background-color: #ffeeee; color: #cc0000; padding: 20px; display: inline-block; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="error-box">
+        <h3>Account Setup Required</h3>
+        <p>{{ message }}</p>
+    </div>
+    <br><br>
+    <p>
+        <a href="{% url 'logout' %}">Log Out</a> | 
+        <a href="/admin/">Go to Admin Panel</a>
+    </p>
+</body>
+</html>

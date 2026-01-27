@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - OBATEK Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+        }
+        .offline-card {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .offline-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        .retry-btn {
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-card">
+        <div class="offline-icon">📡</div>
+        <h2 class="mb-3">You're Offline</h2>
+        <p class="text-muted">
+            It looks like you've lost your internet connection.
+            Some features may not be available until you're back online.
+        </p>
+
+        <div class="alert alert-info mt-4">
+            <strong>Tip:</strong> Any timesheets you submit while offline will be saved and automatically synced when you reconnect.
+        </div>
+
+        <button class="btn btn-primary btn-lg retry-btn" onclick="checkConnection()">
+            Try Again
+        </button>
+
+        <p class="text-muted mt-4 small">
+            <span id="status">Waiting for connection...</span>
+        </p>
+    </div>
+
+    <script>
+        function checkConnection() {
+            if (navigator.onLine) {
+                window.location.href = '/dashboard/';
+            } else {
+                document.getElementById('status').textContent = 'Still offline. Please check your connection.';
+            }
+        }
+
+        // Auto-redirect when back online
+        window.addEventListener('online', () => {
+            document.getElementById('status').textContent = 'Connection restored! Redirecting...';
+            setTimeout(() => {
+                window.location.href = '/dashboard/';
+            }, 1000);
+        });
+
+        window.addEventListener('offline', () => {
+            document.getElementById('status').textContent = 'Still offline...';
+        });
+
+        // Update status on load
+        if (navigator.onLine) {
+            document.getElementById('status').textContent = 'Connection detected! Click Try Again.';
+        }
+    </script>
+</body>
+</html>

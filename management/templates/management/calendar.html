@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OBATEK - My Schedule</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .calendar-table { width: 100%; table-layout: fixed; }
+        .calendar-table th { text-align: center; padding: 10px; background: #0d6efd; color: white; }
+        .calendar-table td {
+            height: 100px;
+            vertical-align: top;
+            padding: 5px;
+            border: 1px solid #dee2e6;
+            position: relative;
+        }
+        .calendar-table td.today { background: #e7f1ff; }
+        .calendar-table td.other-month { background: #f8f9fa; color: #adb5bd; }
+        .day-number { font-weight: bold; font-size: 14px; }
+        .job-event {
+            background: #198754;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-top: 2px;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .job-event:hover { background: #157347; }
+        .upcoming-job {
+            border-left: 4px solid #198754;
+            padding-left: 10px;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            .calendar-table td { height: 60px; padding: 2px; }
+            .day-number { font-size: 12px; }
+            .job-event { font-size: 9px; padding: 1px 3px; }
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-primary mb-4">
+        <div class="container">
+            <span class="navbar-brand">OBATEK - My Schedule</span>
+            <div>
+                <a href="{% url 'submit_timesheet' %}" class="btn btn-outline-light btn-sm me-2">Dashboard</a>
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Month Navigation -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-outline-primary">
+                &larr; Previous
+            </a>
+            <h3 class="mb-0">{{ current_month|date:"F Y" }}</h3>
+            <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-outline-primary">
+                Next &rarr;
+            </a>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div class="card mb-4">
+            <div class="card-body p-0">
+                <table class="calendar-table">
+                    <thead>
+                        <tr>
+                            <th>Sun</th>
+                            <th>Mon</th>
+                            <th>Tue</th>
+                            <th>Wed</th>
+                            <th>Thu</th>
+                            <th>Fri</th>
+                            <th>Sat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for week in month_days %}
+                        <tr>
+                            {% for day in week %}
+                            {% if day == 0 %}
+                            <td class="other-month"></td>
+                            {% else %}
+                            {% with date_str=year|stringformat:"d" %}
+                            {% with month_str=month|stringformat:"02d" %}
+                            {% with day_str=day|stringformat:"02d" %}
+                            {% with full_date=date_str|add:"-"|add:month_str|add:"-"|add:day_str %}
+                            <td {% if day == today.day and month == today.month and year == today.year %}class="today"{% endif %}>
+                                <div class="day-number">{{ day }}</div>
+                                {% for job in jobs_by_date|default_if_none:"" %}
+                                {% endfor %}
+                            </td>
+                            {% endwith %}
+                            {% endwith %}
+                            {% endwith %}
+                            {% endwith %}
+                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Upcoming Jobs List -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Upcoming Jobs</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if upcoming_jobs %}
+                            {% for job in upcoming_jobs %}
+                            <div class="upcoming-job">
+                                <strong>{{ job.scheduled_date|date:"D, M d" }}</strong>
+                                {% if job.scheduled_time %} at {{ job.scheduled_time|time:"g:i A" }}{% endif %}
+                                <br>
+                                <span class="text-primary">{{ job.client.name }}</span>
+                                <br>
+                                <small class="text-muted">{{ job.description|truncatewords:15 }}</small>
+                                <br>
+                                <small>
+                                    <a href="tel:{{ job.client.phone_number }}">{{ job.client.phone_number }}</a>
+                                    {% if job.estimated_duration %} | Est. {{ job.estimated_duration }}hrs{% endif %}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted mb-0">No upcoming jobs scheduled.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <a href="{% url 'submit_timesheet' %}" class="btn btn-primary w-100 mb-2">
+                            Submit Timesheet
+                        </a>
+                        <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-outline-secondary w-100">
+                            Go to Today
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

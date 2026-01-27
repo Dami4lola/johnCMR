@@ -1,0 +1,18 @@
+asgiref==3.11.0
+crispy-bootstrap5==2025.6
+Django==5.2.10
+django-axes==8.1.0
+django-crispy-forms==2.5
+django-csp==4.0
+django-simple-history==3.11.0
+packaging==25.0
+psycopg2-binary==2.9.11
+python-decouple==3.8
+sqlparse==0.5.5
+
+# Production dependencies
+gunicorn==23.0.0
+whitenoise==6.8.2
+dj-database-url==2.3.0
+Pillow==11.2.1
+reportlab==4.4.1

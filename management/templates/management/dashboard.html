@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OBATEK - Manager Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<!-- SECURITY NOTE: Django auto-escapes all template variables by default.
+     NEVER use |safe filter on user-generated content (job descriptions, names, etc.)
+     to prevent XSS attacks. -->
+<body class="bg-light p-4">
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Manager Dashboard</h2>
+            <div>
+                <a href="/admin/" class="btn btn-outline-dark">Backend Admin</a>
+                <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+            </div>
+        </div>
+
+        <div class="card bg-success text-white mb-4 shadow">
+            <div class="card-body text-center">
+                <h3>Total Payroll Owed</h3>
+                <h1 class="display-4">${{ total_payroll }}</h1>
+                <p>Calculated based on {{ timesheets.count }} submissions</p>
+            </div>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Recent Timesheets</h5>
+            </div>
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Worker</th>
+                        <th>Job</th>
+                        <th>Hours</th>
+                        <th>Expenses</th>
+                        <th>Auto-Pay ($)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in timesheets %}
+                    <tr>
+                        <td>{{ log.date }}</td>
+                        <td>
+                            <span class="fw-bold">{{ log.worker.name }}</span>
+                            <br><small class="text-muted">{{ log.worker.user.username }}</small>
+                        </td>
+                        <td>{{ log.job.client.name }}<br><small>{{ log.job.description }}</small></td>
+                        <td>{{ log.hours_worked }} hrs</td>
+                        <td>
+                            {% if log.materials_cost > 0 %}Mat: ${{ log.materials_cost }}<br>{% endif %}
+                            {% if log.receipts_total > 0 %}Exp: ${{ log.receipts_total }}{% endif %}
+                        </td>
+                        <td class="fw-bold text-success">${{ log.calculated_pay }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">No timesheets found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Session timeout warning - alert user 5 minutes before 24-hour session expires
+        const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+        const WARNING_BEFORE = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+        setTimeout(function() {
+            alert('⏰ Session Expiring Soon!\n\nYour session will expire in 5 minutes. Please save any work in progress.');
+        }, SESSION_DURATION - WARNING_BEFORE);
+    </script>
+</body>
+</html>
