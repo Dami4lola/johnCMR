@@ -1,0 +1,5 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn core.wsgi --log-file -"
