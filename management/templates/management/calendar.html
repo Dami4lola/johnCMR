@@ -132,6 +132,8 @@
                                     <a href="tel:{{ job.client.phone_number }}">{{ job.client.phone_number }}</a>
                                     {% if job.estimated_duration %} | Est. {{ job.estimated_duration }}hrs{% endif %}
                                 </small>
+                                <br>
+                                <a href="{% url 'job_inspections' job.id %}" class="btn btn-outline-success btn-sm mt-2">Inspections</a>
                             </div>
                             {% endfor %}
                         {% else %}

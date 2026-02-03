@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Client, Worker, Job, Timesheet, Invoice, Receipt
+from .models import Client, Worker, Job, Timesheet, Invoice, Receipt, PurchaseListItem, JobInspection, InspectionPhoto
 from simple_history.admin import SimpleHistoryAdmin
 # Register your models here.
 
@@ -132,7 +132,7 @@ class TimesheetAdmin(SimpleHistoryAdmin):
             'fields': ('used_company_truck', 'worked_at_hq')
         }),
         ('Expenses', {
-            'fields': ('company_materials', 'personal_materials', 'receipts_total', 'receipt_card_digits')
+            'fields': ('company_materials', 'personal_materials', 'receipts_total')
         }),
         ('Calculated', {
             'fields': ('calculated_pay',)
@@ -264,6 +264,123 @@ class ReceiptAdmin(admin.ModelAdmin):
     list_display = ('timesheet', 'description', 'amount', 'image_preview', 'uploaded_at')
     list_filter = ('timesheet__worker', 'uploaded_at')
     search_fields = ('description', 'timesheet__worker__name')
+    readonly_fields = ('image_preview_large', 'uploaded_at')
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="max-height: 40px;" />',
+                obj.image.url
+            )
+        return "-"
+    image_preview.short_description = 'Preview'
+
+    def image_preview_large(self, obj):
+        if obj.image:
+            return format_html(
+                '<a href="{}" target="_blank">'
+                '<img src="{}" style="max-height: 300px;" />'
+                '</a>',
+                obj.image.url, obj.image.url
+            )
+        return "-"
+    image_preview_large.short_description = 'Image'
+
+
+@admin.register(PurchaseListItem)
+class PurchaseListItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'quantity', 'priority', 'status', 'added_by', 'added_at', 'purchased_by')
+    list_filter = ('status', 'priority', 'added_at')
+    search_fields = ('name', 'notes')
+    readonly_fields = ('added_at', 'purchased_at')
+
+    fieldsets = (
+        ('Item Details', {
+            'fields': ('name', 'quantity', 'priority', 'notes')
+        }),
+        ('Status', {
+            'fields': ('status', 'added_by', 'added_at', 'purchased_by', 'purchased_at')
+        }),
+    )
+
+
+class InspectionPhotoInline(admin.TabularInline):
+    """Inline display of photos on inspection admin"""
+    model = InspectionPhoto
+    extra = 0
+    readonly_fields = ('image_preview', 'uploaded_at')
+    fields = ('image_preview', 'image', 'caption', 'uploaded_at')
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html(
+                '<a href="{}" target="_blank">'
+                '<img src="{}" style="max-height: 80px; max-width: 120px;" />'
+                '</a>',
+                obj.image.url, obj.image.url
+            )
+        return "-"
+    image_preview.short_description = 'Preview'
+
+
+@admin.register(JobInspection)
+class JobInspectionAdmin(admin.ModelAdmin):
+    list_display = ('job_client', 'inspection_type', 'inspection_date', 'inspector', 'status', 'photo_count', 'created_at')
+    list_filter = ('inspection_type', 'status', 'inspection_date')
+    search_fields = ('job__client__name', 'job__description', 'inspector__name')
+    readonly_fields = ('created_at', 'updated_at', 'completed_at')
+    date_hierarchy = 'inspection_date'
+    inlines = [InspectionPhotoInline]
+
+    fieldsets = (
+        ('Job & Inspector', {
+            'fields': ('job', 'inspection_type', 'inspector')
+        }),
+        ('Inspection Details', {
+            'fields': ('inspection_date', 'inspection_time', 'status')
+        }),
+        ('Site Conditions', {
+            'fields': ('site_conditions', 'safety_hazards', 'client_present')
+        }),
+        ('Pre-Inspection Fields', {
+            'fields': ('access_issues', 'existing_damage'),
+            'classes': ('collapse',),
+            'description': 'Fields specific to pre-inspections'
+        }),
+        ('Post-Inspection Fields', {
+            'fields': ('work_completed', 'quality_check_passed', 'client_satisfied', 'followup_required', 'followup_notes'),
+            'classes': ('collapse',),
+            'description': 'Fields specific to post-inspections'
+        }),
+        ('Notes & Signature', {
+            'fields': ('notes', 'client_name_signed', 'client_signature')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'completed_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def job_client(self, obj):
+        return obj.job.client.name
+    job_client.short_description = 'Client'
+
+    def photo_count(self, obj):
+        count = obj.photos.count()
+        if count > 0:
+            return format_html(
+                '<span style="background-color: #198754; color: white; padding: 3px 8px; border-radius: 10px;">{}</span>',
+                count
+            )
+        return format_html('<span style="color: #999;">0</span>')
+    photo_count.short_description = 'Photos'
+
+
+@admin.register(InspectionPhoto)
+class InspectionPhotoAdmin(admin.ModelAdmin):
+    list_display = ('inspection', 'caption', 'image_preview', 'uploaded_at')
+    list_filter = ('uploaded_at', 'inspection__inspection_type')
+    search_fields = ('caption', 'inspection__job__client__name')
     readonly_fields = ('image_preview_large', 'uploaded_at')
 
     def image_preview(self, obj):

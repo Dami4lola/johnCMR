@@ -4,7 +4,12 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.core.exceptions import ValidationError
 from simple_history.models import HistoricalRecords
+from django.conf import settings
 import math
+import requests
+
+# Office address for distance calculations
+OFFICE_ADDRESS = "244 Bell Street North, K1R 5T7, Ottawa, Ontario, Canada"
 
 class Client(models.Model):
     name = models.CharField(max_length=100)
@@ -57,8 +62,54 @@ class Job(models.Model):
     is_completed = models.BooleanField(default=False)
     estimate_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
+    # Auto-calculated distance from office to job site (round trip)
+    calculated_distance_km = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Auto-calculated round trip distance from office (km)"
+    )
+
     def __str__(self):
         return f"{self.client.name} - {self.description[:50]}"
+
+    def calculate_distance(self):
+        """Calculate round trip distance from office to job site using Google Maps API"""
+        api_key = getattr(settings, 'GOOGLE_MAPS_API_KEY', None)
+        if not api_key:
+            return None
+
+        destination = self.client.address
+        if not destination:
+            return None
+
+        try:
+            url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+            params = {
+                'origins': OFFICE_ADDRESS,
+                'destinations': destination,
+                'key': api_key,
+                'units': 'metric'
+            }
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+
+            if data['status'] == 'OK':
+                element = data['rows'][0]['elements'][0]
+                if element['status'] == 'OK':
+                    # Distance in meters, convert to km and double for round trip
+                    distance_m = element['distance']['value']
+                    round_trip_km = (distance_m / 1000) * 2
+                    return round(round_trip_km, 2)
+        except Exception:
+            pass
+        return None
+
+    def save(self, *args, **kwargs):
+        # Auto-calculate distance if not set and API key exists
+        if self.calculated_distance_km is None:
+            distance = self.calculate_distance()
+            if distance:
+                self.calculated_distance_km = distance
+        super().save(*args, **kwargs)
 
 
 class Invoice(models.Model):
@@ -266,3 +317,123 @@ class Receipt(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
+
+
+class PurchaseListItem(models.Model):
+    """Item on the team shopping/purchase list"""
+    PRIORITY_CHOICES = [
+        ('1_high', 'High - Urgent'),
+        ('2_medium', 'Medium'),
+        ('3_low', 'Low'),
+    ]
+
+    STATUS_CHOICES = [
+        ('needed', 'Needed'),
+        ('purchased', 'Purchased'),
+    ]
+
+    name = models.CharField(max_length=200, help_text="Item name/description")
+    quantity = models.CharField(max_length=50, blank=True, help_text="e.g., '2 boxes', '5 bags'")
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='2_medium')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='needed')
+    notes = models.TextField(blank=True, help_text="Additional details (brand, size, where to buy, etc.)")
+
+    # Who added it and when
+    added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='purchase_items_added')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    # Who purchased it (if purchased)
+    purchased_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_items_bought')
+    purchased_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_priority_display()})"
+
+    class Meta:
+        ordering = ['priority', '-added_at']  # 1_high < 2_medium < 3_low
+
+
+def inspection_photo_path(instance, filename):
+    """Generate upload path: inspections/job_id/type/filename"""
+    job_id = instance.inspection.job.id
+    inspection_type = instance.inspection.inspection_type
+    return f'inspections/{job_id}/{inspection_type}/{filename}'
+
+
+class JobInspection(models.Model):
+    """Pre or Post inspection form for a job"""
+    INSPECTION_TYPE_CHOICES = [
+        ('pre', 'Pre-Inspection'),
+        ('post', 'Post-Inspection'),
+    ]
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('completed', 'Completed'),
+    ]
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='inspections')
+    inspection_type = models.CharField(max_length=4, choices=INSPECTION_TYPE_CHOICES)
+    inspector = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, related_name='inspections')
+
+    # When
+    inspection_date = models.DateField()
+    inspection_time = models.TimeField(null=True, blank=True)
+
+    # Status
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+
+    # General fields (always present)
+    site_conditions = models.TextField(blank=True, help_text="Overall site conditions observed")
+    safety_hazards = models.TextField(blank=True, help_text="Any safety hazards identified")
+    notes = models.TextField(blank=True, help_text="Additional observations or comments")
+
+    # Pre-inspection specific
+    client_present = models.BooleanField(default=False, help_text="Was the client present during inspection?")
+    access_issues = models.TextField(blank=True, help_text="Any access or entry issues")
+    existing_damage = models.TextField(blank=True, help_text="Pre-existing damage to document")
+
+    # Post-inspection specific
+    work_completed = models.TextField(blank=True, help_text="Description of work completed")
+    quality_check_passed = models.BooleanField(default=True)
+    client_satisfied = models.BooleanField(null=True, blank=True, help_text="Client satisfaction if present")
+    followup_required = models.BooleanField(default=False)
+    followup_notes = models.TextField(blank=True, help_text="Details of any follow-up work needed")
+
+    # Client signature (base64 or file path - for later implementation)
+    client_signature = models.TextField(blank=True, help_text="Client signature data")
+    client_name_signed = models.CharField(max_length=100, blank=True, help_text="Printed name of client who signed")
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-inspection_date', '-created_at']
+        # Prevent duplicate inspections of same type for a job
+        unique_together = ['job', 'inspection_type']
+
+    def __str__(self):
+        return f"{self.get_inspection_type_display()} - {self.job.client.name} ({self.inspection_date})"
+
+    def save(self, *args, **kwargs):
+        # Set completed_at when status changes to completed
+        if self.status == 'completed' and not self.completed_at:
+            from django.utils import timezone
+            self.completed_at = timezone.now()
+        super().save(*args, **kwargs)
+
+
+class InspectionPhoto(models.Model):
+    """Photos attached to an inspection"""
+    inspection = models.ForeignKey(JobInspection, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to=inspection_photo_path)
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Photo for {self.inspection}"
+
+    class Meta:
+        ordering = ['uploaded_at']

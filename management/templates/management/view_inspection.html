@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OBATEK - {{ inspection.get_inspection_type_display }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .info-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .info-section h5 { border-bottom: 1px solid #dee2e6; padding-bottom: 10px; margin-bottom: 15px; }
+        .info-row { margin-bottom: 10px; }
+        .info-label { font-weight: 600; color: #666; }
+        .photo-gallery img { max-width: 200px; margin: 5px; border-radius: 5px; cursor: pointer; }
+        .status-badge { font-size: 0.9em; }
+        .check-item { margin-bottom: 5px; }
+        .check-yes { color: #28a745; }
+        .check-no { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'submit_timesheet' %}">OBATEK</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'submit_timesheet' %}">Timesheet</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'worker_calendar' %}">Calendar</a>
+                    </li>
+                </ul>
+                <span class="navbar-text me-3">{{ request.user.username }}</span>
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'job_inspections' job.id %}">{{ job.client.name }}</a></li>
+                <li class="breadcrumb-item active">{{ inspection.get_inspection_type_display }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">{{ inspection.get_inspection_type_display }}</h2>
+            <span class="badge {% if inspection.status == 'completed' %}bg-success{% else %}bg-warning text-dark{% endif %} status-badge">
+                {{ inspection.get_status_display }}
+            </span>
+        </div>
+
+        <!-- Job Info -->
+        <div class="info-section">
+            <h5>Job Information</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="info-row">
+                        <span class="info-label">Client:</span> {{ job.client.name }}
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Address:</span> {{ job.client.address }}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-row">
+                        <span class="info-label">Job Description:</span> {{ job.description|truncatewords:20 }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inspection Details -->
+        <div class="info-section">
+            <h5>Inspection Details</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="info-row">
+                        <span class="info-label">Date:</span> {{ inspection.inspection_date }}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-row">
+                        <span class="info-label">Time:</span> {{ inspection.inspection_time|default:"Not recorded" }}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-row">
+                        <span class="info-label">Inspector:</span> {{ inspection.inspector.name|default:"Unknown" }}
+                    </div>
+                </div>
+            </div>
+            <div class="info-row mt-3">
+                <div class="check-item">
+                    {% if inspection.client_present %}
+                        <span class="check-yes">&#10003;</span> Client was present
+                    {% else %}
+                        <span class="check-no">&#10007;</span> Client was not present
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Site Conditions -->
+        <div class="info-section">
+            <h5>Site Conditions</h5>
+            {% if inspection.site_conditions %}
+                <div class="info-row">
+                    <span class="info-label">Overall Conditions:</span>
+                    <p class="mb-2">{{ inspection.site_conditions }}</p>
+                </div>
+            {% endif %}
+            {% if inspection.safety_hazards %}
+                <div class="info-row">
+                    <span class="info-label">Safety Hazards:</span>
+                    <p class="mb-0 text-danger">{{ inspection.safety_hazards }}</p>
+                </div>
+            {% endif %}
+            {% if not inspection.site_conditions and not inspection.safety_hazards %}
+                <p class="text-muted mb-0">No site conditions recorded.</p>
+            {% endif %}
+        </div>
+
+        {% if inspection.inspection_type == 'pre' %}
+        <!-- Pre-Inspection Details -->
+        <div class="info-section">
+            <h5>Pre-Inspection Details</h5>
+            {% if inspection.access_issues %}
+                <div class="info-row">
+                    <span class="info-label">Access Issues:</span>
+                    <p class="mb-2">{{ inspection.access_issues }}</p>
+                </div>
+            {% endif %}
+            {% if inspection.existing_damage %}
+                <div class="info-row">
+                    <span class="info-label">Existing Damage Documented:</span>
+                    <p class="mb-0">{{ inspection.existing_damage }}</p>
+                </div>
+            {% endif %}
+            {% if not inspection.access_issues and not inspection.existing_damage %}
+                <p class="text-muted mb-0">No pre-inspection details recorded.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if inspection.inspection_type == 'post' %}
+        <!-- Post-Inspection Details -->
+        <div class="info-section">
+            <h5>Work Completion Details</h5>
+            {% if inspection.work_completed %}
+                <div class="info-row">
+                    <span class="info-label">Work Completed:</span>
+                    <p class="mb-3">{{ inspection.work_completed }}</p>
+                </div>
+            {% endif %}
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="check-item">
+                        {% if inspection.quality_check_passed %}
+                            <span class="check-yes">&#10003;</span> Quality Check Passed
+                        {% else %}
+                            <span class="check-no">&#10007;</span> Quality Check Failed
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="check-item">
+                        {% if inspection.client_satisfied %}
+                            <span class="check-yes">&#10003;</span> Client Satisfied
+                        {% elif inspection.client_satisfied == False %}
+                            <span class="check-no">&#10007;</span> Client Not Satisfied
+                        {% else %}
+                            <span class="text-muted">- Client satisfaction not recorded</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="check-item">
+                        {% if inspection.followup_required %}
+                            <span class="check-no">&#10003;</span> Follow-up Required
+                        {% else %}
+                            <span class="check-yes">&#10003;</span> No Follow-up Needed
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if inspection.followup_required and inspection.followup_notes %}
+                <div class="info-row mt-3">
+                    <span class="info-label">Follow-up Notes:</span>
+                    <p class="mb-0 text-warning">{{ inspection.followup_notes }}</p>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Additional Notes -->
+        {% if inspection.notes %}
+        <div class="info-section">
+            <h5>Additional Notes</h5>
+            <p class="mb-0">{{ inspection.notes }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Photos -->
+        {% if photos %}
+        <div class="info-section">
+            <h5>Photos ({{ photos.count }})</h5>
+            <div class="photo-gallery">
+                {% for photo in photos %}
+                    <a href="{{ photo.image.url }}" target="_blank">
+                        <img src="{{ photo.image.url }}" alt="Inspection photo {{ forloop.counter }}">
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Client Sign-off -->
+        {% if inspection.client_name_signed %}
+        <div class="info-section">
+            <h5>Client Sign-off</h5>
+            <div class="info-row">
+                <span class="info-label">Signed by:</span> {{ inspection.client_name_signed }}
+            </div>
+            {% if inspection.completed_at %}
+            <div class="info-row">
+                <span class="info-label">Completed:</span> {{ inspection.completed_at }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Timestamps -->
+        <div class="text-muted small mb-4">
+            <p class="mb-1">Created: {{ inspection.created_at }}</p>
+            <p class="mb-0">Last updated: {{ inspection.updated_at }}</p>
+        </div>
+
+        <div class="d-flex gap-2 mb-4">
+            <a href="{% url 'edit_inspection' inspection.id %}" class="btn btn-primary">Edit Inspection</a>
+            <a href="{% url 'job_inspections' job.id %}" class="btn btn-outline-secondary">Back to Inspections</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

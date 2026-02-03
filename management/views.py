@@ -5,7 +5,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponseForbidden, JsonResponse, HttpResponse
-from .models import Timesheet, Job, Worker, Invoice, Receipt
+from .models import Timesheet, Job, Worker, Invoice, Receipt, PurchaseListItem, JobInspection, InspectionPhoto
 from .forms import TimesheetForm, WorkerSignUpForm, ReceiptForm
 from datetime import datetime, timedelta
 import calendar
@@ -392,3 +392,303 @@ def service_worker(request):
 def pending_timesheets(request):
     """Page to view and manage offline pending timesheets"""
     return render(request, 'management/pending_timesheets.html')
+
+
+@login_required
+def get_job_distance(request, job_id):
+    """API endpoint to get the calculated distance for a job"""
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        return JsonResponse({'error': 'Worker not found'}, status=404)
+
+    # Verify job is assigned to this worker
+    job = get_object_or_404(Job, id=job_id, assigned_workers=worker)
+
+    # If distance not calculated yet, try to calculate it
+    if job.calculated_distance_km is None:
+        distance = job.calculate_distance()
+        if distance:
+            job.calculated_distance_km = distance
+            job.save()
+
+    return JsonResponse({
+        'job_id': job.id,
+        'distance_km': float(job.calculated_distance_km) if job.calculated_distance_km else None,
+        'client_address': job.client.address
+    })
+
+
+# ===================================
+# PURCHASE LIST VIEWS
+# ===================================
+
+@login_required
+def purchase_list(request):
+    """View the team shopping/purchase list"""
+    # Get items split by status
+    needed_items = PurchaseListItem.objects.filter(status='needed')
+    purchased_items = PurchaseListItem.objects.filter(status='purchased').order_by('-purchased_at')[:20]
+
+    context = {
+        'needed_items': needed_items,
+        'purchased_items': purchased_items,
+    }
+    return render(request, 'management/purchase_list.html', context)
+
+
+@login_required
+def add_purchase_item(request):
+    """Add item to the purchase list"""
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        quantity = request.POST.get('quantity', '').strip()
+        priority = request.POST.get('priority', 'medium')
+        notes = request.POST.get('notes', '').strip()
+
+        if name:
+            PurchaseListItem.objects.create(
+                name=name,
+                quantity=quantity,
+                priority=priority,
+                notes=notes,
+                added_by=request.user
+            )
+            messages.success(request, f'"{name}" added to purchase list!')
+        else:
+            messages.error(request, 'Please enter an item name.')
+
+    return redirect('purchase_list')
+
+
+@login_required
+def mark_item_purchased(request, item_id):
+    """Mark an item as purchased"""
+    from django.utils import timezone
+
+    item = get_object_or_404(PurchaseListItem, id=item_id)
+    item.status = 'purchased'
+    item.purchased_by = request.user
+    item.purchased_at = timezone.now()
+    item.save()
+
+    messages.success(request, f'"{item.name}" marked as purchased!')
+    return redirect('purchase_list')
+
+
+@login_required
+def delete_purchase_item(request, item_id):
+    """Delete an item from the purchase list"""
+    item = get_object_or_404(PurchaseListItem, id=item_id)
+    item_name = item.name
+    item.delete()
+
+    messages.success(request, f'"{item_name}" removed from list.')
+    return redirect('purchase_list')
+
+
+# ===================================
+# JOB INSPECTION VIEWS
+# ===================================
+
+@login_required
+def job_inspections(request, job_id):
+    """View inspections for a specific job"""
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        if not request.user.is_staff:
+            return render(request, 'management/error.html', {'message': 'Worker profile not found.'})
+        worker = None
+
+    job = get_object_or_404(Job, id=job_id)
+
+    # Workers can only view jobs they're assigned to
+    if worker and not request.user.is_staff:
+        if not job.assigned_workers.filter(id=worker.id).exists():
+            return HttpResponseForbidden("You are not assigned to this job.")
+
+    pre_inspection = job.inspections.filter(inspection_type='pre').first()
+    post_inspection = job.inspections.filter(inspection_type='post').first()
+
+    context = {
+        'job': job,
+        'pre_inspection': pre_inspection,
+        'post_inspection': post_inspection,
+    }
+    return render(request, 'management/job_inspections.html', context)
+
+
+@login_required
+def create_inspection(request, job_id, inspection_type):
+    """Create a new pre or post inspection"""
+    from django.utils import timezone
+
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        return render(request, 'management/error.html', {'message': 'Worker profile not found.'})
+
+    job = get_object_or_404(Job, id=job_id)
+
+    # Verify worker is assigned to job
+    if not request.user.is_staff and not job.assigned_workers.filter(id=worker.id).exists():
+        return HttpResponseForbidden("You are not assigned to this job.")
+
+    # Check if inspection already exists
+    existing = job.inspections.filter(inspection_type=inspection_type).first()
+    if existing:
+        messages.info(request, f'{inspection_type.title()}-inspection already exists. Redirecting to edit.')
+        return redirect('edit_inspection', inspection_id=existing.id)
+
+    if request.method == 'POST':
+        # Create the inspection
+        inspection = JobInspection.objects.create(
+            job=job,
+            inspection_type=inspection_type,
+            inspector=worker,
+            inspection_date=request.POST.get('inspection_date', timezone.now().date()),
+            inspection_time=request.POST.get('inspection_time') or None,
+            status=request.POST.get('status', 'draft'),
+            site_conditions=request.POST.get('site_conditions', ''),
+            safety_hazards=request.POST.get('safety_hazards', ''),
+            notes=request.POST.get('notes', ''),
+            client_present=request.POST.get('client_present') == 'on',
+            access_issues=request.POST.get('access_issues', ''),
+            existing_damage=request.POST.get('existing_damage', ''),
+            work_completed=request.POST.get('work_completed', ''),
+            quality_check_passed=request.POST.get('quality_check_passed', 'on') == 'on',
+            client_satisfied=request.POST.get('client_satisfied') == 'on' if request.POST.get('client_satisfied') else None,
+            followup_required=request.POST.get('followup_required') == 'on',
+            followup_notes=request.POST.get('followup_notes', ''),
+            client_name_signed=request.POST.get('client_name_signed', ''),
+            client_signature=request.POST.get('client_signature', ''),
+        )
+
+        # Handle photo uploads
+        photos = request.FILES.getlist('photos')
+        for photo in photos:
+            InspectionPhoto.objects.create(
+                inspection=inspection,
+                image=photo,
+                caption=''
+            )
+
+        messages.success(request, f'{inspection_type.title()}-inspection created successfully!')
+        return redirect('job_inspections', job_id=job.id)
+
+    context = {
+        'job': job,
+        'inspection_type': inspection_type,
+        'today': timezone.now().date(),
+    }
+    return render(request, 'management/create_inspection.html', context)
+
+
+@login_required
+def edit_inspection(request, inspection_id):
+    """Edit an existing inspection"""
+    from django.utils import timezone
+
+    inspection = get_object_or_404(JobInspection, id=inspection_id)
+    job = inspection.job
+
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        if not request.user.is_staff:
+            return render(request, 'management/error.html', {'message': 'Worker profile not found.'})
+        worker = None
+
+    # Authorization check
+    if worker and not request.user.is_staff:
+        if not job.assigned_workers.filter(id=worker.id).exists():
+            return HttpResponseForbidden("You are not assigned to this job.")
+
+    if request.method == 'POST':
+        inspection.inspection_date = request.POST.get('inspection_date', inspection.inspection_date)
+        inspection.inspection_time = request.POST.get('inspection_time') or None
+        inspection.status = request.POST.get('status', 'draft')
+        inspection.site_conditions = request.POST.get('site_conditions', '')
+        inspection.safety_hazards = request.POST.get('safety_hazards', '')
+        inspection.notes = request.POST.get('notes', '')
+        inspection.client_present = request.POST.get('client_present') == 'on'
+        inspection.access_issues = request.POST.get('access_issues', '')
+        inspection.existing_damage = request.POST.get('existing_damage', '')
+        inspection.work_completed = request.POST.get('work_completed', '')
+        inspection.quality_check_passed = request.POST.get('quality_check_passed', 'on') == 'on'
+        inspection.client_satisfied = request.POST.get('client_satisfied') == 'on' if request.POST.get('client_satisfied') else None
+        inspection.followup_required = request.POST.get('followup_required') == 'on'
+        inspection.followup_notes = request.POST.get('followup_notes', '')
+        inspection.client_name_signed = request.POST.get('client_name_signed', '')
+        inspection.client_signature = request.POST.get('client_signature', '')
+        inspection.save()
+
+        # Handle new photo uploads
+        photos = request.FILES.getlist('photos')
+        for photo in photos:
+            InspectionPhoto.objects.create(
+                inspection=inspection,
+                image=photo,
+                caption=''
+            )
+
+        messages.success(request, 'Inspection updated successfully!')
+        return redirect('job_inspections', job_id=job.id)
+
+    context = {
+        'job': job,
+        'inspection': inspection,
+        'inspection_type': inspection.inspection_type,
+    }
+    return render(request, 'management/edit_inspection.html', context)
+
+
+@login_required
+def view_inspection(request, inspection_id):
+    """View a completed inspection"""
+    inspection = get_object_or_404(JobInspection, id=inspection_id)
+    job = inspection.job
+
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        if not request.user.is_staff:
+            return render(request, 'management/error.html', {'message': 'Worker profile not found.'})
+        worker = None
+
+    # Authorization check
+    if worker and not request.user.is_staff:
+        if not job.assigned_workers.filter(id=worker.id).exists():
+            return HttpResponseForbidden("You are not assigned to this job.")
+
+    context = {
+        'job': job,
+        'inspection': inspection,
+        'photos': inspection.photos.all(),
+    }
+    return render(request, 'management/view_inspection.html', context)
+
+
+@login_required
+def delete_inspection_photo(request, photo_id):
+    """Delete a photo from an inspection"""
+    photo = get_object_or_404(InspectionPhoto, id=photo_id)
+    inspection = photo.inspection
+    job = inspection.job
+
+    try:
+        worker = request.user.worker
+    except Worker.DoesNotExist:
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Worker not found'}, status=404)
+        worker = None
+
+    # Authorization
+    if worker and not request.user.is_staff:
+        if not job.assigned_workers.filter(id=worker.id).exists():
+            return JsonResponse({'error': 'Not authorized'}, status=403)
+
+    photo.delete()
+    messages.success(request, 'Photo deleted.')
+    return redirect('edit_inspection', inspection_id=inspection.id)

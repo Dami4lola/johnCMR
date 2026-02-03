@@ -234,6 +234,7 @@
             <span class="navbar-brand">OBATEK Portal</span>
             <div>
                 <a href="{% url 'worker_calendar' %}" class="btn btn-sm btn-outline-light me-2">My Schedule</a>
+                <a href="{% url 'purchase_list' %}" class="btn btn-sm btn-outline-light me-2">Purchase List</a>
                 <a href="{% url 'logout' %}" class="btn btn-sm btn-light text-primary">Log Out</a>
             </div>
         </div>
@@ -756,6 +757,32 @@
             localStorage.setItem('pwa-install-dismissed', Date.now().toString());
             showToast('Follow the steps to install the app!', 'info');
         });
+
+        // ================================
+        // AUTO-FILL DISTANCE WHEN JOB SELECTED
+        // ================================
+        const jobSelect = document.querySelector('select[name="job"]');
+        const distanceInput = document.querySelector('input[name="round_trip_kms"]');
+
+        if (jobSelect && distanceInput) {
+            jobSelect.addEventListener('change', async function() {
+                const jobId = this.value;
+                if (!jobId) return;
+
+                try {
+                    const response = await fetch(`/api/job-distance/${jobId}/`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.distance_km) {
+                            distanceInput.value = data.distance_km;
+                            showToast(`Distance auto-filled: ${data.distance_km} km round trip`, 'info', 3000);
+                        }
+                    }
+                } catch (err) {
+                    console.log('Could not fetch distance:', err);
+                }
+            });
+        }
 
         // ================================
         // RECEIPT PREVIEW

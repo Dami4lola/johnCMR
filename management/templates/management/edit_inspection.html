@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OBATEK - Edit {{ inspection_type|title }}-Inspection</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .form-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .form-section h5 { border-bottom: 1px solid #dee2e6; padding-bottom: 10px; margin-bottom: 15px; }
+        .photo-thumb { width: 100px; height: 100px; object-fit: cover; border-radius: 5px; }
+        .photo-item { position: relative; display: inline-block; margin: 5px; }
+        .photo-delete { position: absolute; top: -5px; right: -5px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'submit_timesheet' %}">OBATEK</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'submit_timesheet' %}">Timesheet</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'worker_calendar' %}">Calendar</a>
+                    </li>
+                </ul>
+                <span class="navbar-text me-3">{{ request.user.username }}</span>
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'job_inspections' job.id %}">{{ job.client.name }}</a></li>
+                <li class="breadcrumb-item active">Edit {{ inspection_type|title }}-Inspection</li>
+            </ol>
+        </nav>
+
+        <h2 class="mb-4">Edit {{ inspection_type|title }}-Inspection</h2>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <!-- Basic Info -->
+            <div class="form-section">
+                <h5>Inspection Details</h5>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Date *</label>
+                        <input type="date" name="inspection_date" class="form-control" value="{{ inspection.inspection_date|date:'Y-m-d' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Time</label>
+                        <input type="time" name="inspection_time" class="form-control" value="{{ inspection.inspection_time|time:'H:i' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="draft" {% if inspection.status == 'draft' %}selected{% endif %}>Draft (In Progress)</option>
+                            <option value="completed" {% if inspection.status == 'completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Site Conditions -->
+            <div class="form-section">
+                <h5>Site Conditions</h5>
+                <div class="mb-3">
+                    <label class="form-label">Overall Site Conditions</label>
+                    <textarea name="site_conditions" class="form-control" rows="3">{{ inspection.site_conditions }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Safety Hazards Identified</label>
+                    <textarea name="safety_hazards" class="form-control" rows="2">{{ inspection.safety_hazards }}</textarea>
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" name="client_present" class="form-check-input" id="clientPresent" {% if inspection.client_present %}checked{% endif %}>
+                    <label class="form-check-label" for="clientPresent">Client was present during inspection</label>
+                </div>
+            </div>
+
+            {% if inspection_type == 'pre' %}
+            <!-- Pre-Inspection Specific -->
+            <div class="form-section">
+                <h5>Pre-Inspection Details</h5>
+                <div class="mb-3">
+                    <label class="form-label">Access Issues</label>
+                    <textarea name="access_issues" class="form-control" rows="2">{{ inspection.access_issues }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Existing Damage (Document Before Work)</label>
+                    <textarea name="existing_damage" class="form-control" rows="3">{{ inspection.existing_damage }}</textarea>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if inspection_type == 'post' %}
+            <!-- Post-Inspection Specific -->
+            <div class="form-section">
+                <h5>Work Completion Details</h5>
+                <div class="mb-3">
+                    <label class="form-label">Work Completed</label>
+                    <textarea name="work_completed" class="form-control" rows="3">{{ inspection.work_completed }}</textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input type="checkbox" name="quality_check_passed" class="form-check-input" id="qualityCheck" {% if inspection.quality_check_passed %}checked{% endif %}>
+                            <label class="form-check-label" for="qualityCheck">Quality Check Passed</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input type="checkbox" name="client_satisfied" class="form-check-input" id="clientSatisfied" {% if inspection.client_satisfied %}checked{% endif %}>
+                            <label class="form-check-label" for="clientSatisfied">Client Satisfied</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input type="checkbox" name="followup_required" class="form-check-input" id="followupRequired" {% if inspection.followup_required %}checked{% endif %}>
+                            <label class="form-check-label" for="followupRequired">Follow-up Required</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3" id="followupNotesDiv" {% if not inspection.followup_required %}style="display: none;"{% endif %}>
+                    <label class="form-label">Follow-up Notes</label>
+                    <textarea name="followup_notes" class="form-control" rows="2">{{ inspection.followup_notes }}</textarea>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Existing Photos -->
+            {% if inspection.photos.exists %}
+            <div class="form-section">
+                <h5>Existing Photos</h5>
+                <div class="mb-3">
+                    {% for photo in inspection.photos.all %}
+                        <div class="photo-item">
+                            <img src="{{ photo.image.url }}" class="photo-thumb" alt="Inspection photo">
+                            <a href="{% url 'delete_inspection_photo' photo.id %}" class="btn btn-danger btn-sm photo-delete" onclick="return confirm('Delete this photo?')">X</a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes & New Photos -->
+            <div class="form-section">
+                <h5>Additional Notes & Photos</h5>
+                <div class="mb-3">
+                    <label class="form-label">Additional Notes</label>
+                    <textarea name="notes" class="form-control" rows="3">{{ inspection.notes }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Add More Photos</label>
+                    <input type="file" name="photos" class="form-control" multiple accept="image/*">
+                    <small class="text-muted">You can select multiple photos</small>
+                </div>
+            </div>
+
+            <!-- Client Signature -->
+            <div class="form-section">
+                <h5>Client Sign-off (Optional)</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Client Name (Printed)</label>
+                        <input type="text" name="client_name_signed" class="form-control" value="{{ inspection.client_name_signed }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Signature</label>
+                        <input type="text" name="client_signature" class="form-control" placeholder="Signature capture coming soon..." disabled>
+                        <small class="text-muted">Digital signature feature will be added with templates</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-4">
+                <button type="submit" class="btn btn-primary">Update Inspection</button>
+                <a href="{% url 'job_inspections' job.id %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const followupCheckbox = document.getElementById('followupRequired');
+        const followupDiv = document.getElementById('followupNotesDiv');
+        if (followupCheckbox) {
+            followupCheckbox.addEventListener('change', function() {
+                followupDiv.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

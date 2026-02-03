@@ -30,7 +30,7 @@ class TimesheetForm(forms.ModelForm):
         fields = ['job', 'date', 'hours_worked', 'round_trip_kms',
                   'used_company_truck', 'worked_at_hq',
                   'company_materials', 'personal_materials',
-                  'receipts_total', 'receipt_card_digits']
+                  'receipts_total']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
         }

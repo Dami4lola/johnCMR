@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OBATEK - Job Inspections</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .inspection-card { border-radius: 10px; margin-bottom: 20px; }
+        .inspection-card.completed { border-left: 4px solid #28a745; }
+        .inspection-card.draft { border-left: 4px solid #ffc107; }
+        .inspection-card.missing { border-left: 4px solid #dc3545; background: #fff5f5; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'submit_timesheet' %}">OBATEK</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'submit_timesheet' %}">Timesheet</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'worker_calendar' %}">Calendar</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'purchase_list' %}">Purchase List</a>
+                    </li>
+                </ul>
+                <span class="navbar-text me-3">{{ request.user.username }}</span>
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'worker_calendar' %}">Jobs</a></li>
+                <li class="breadcrumb-item active">{{ job.client.name }}</li>
+            </ol>
+        </nav>
+
+        <h2 class="mb-2">Job Inspections</h2>
+        <p class="text-muted mb-4">
+            <strong>{{ job.client.name }}</strong> - {{ job.description|truncatewords:15 }}<br>
+            <small>{{ job.client.address }}</small>
+        </p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="row">
+            <!-- Pre-Inspection -->
+            <div class="col-md-6">
+                <div class="card inspection-card {% if pre_inspection %}{% if pre_inspection.status == 'completed' %}completed{% else %}draft{% endif %}{% else %}missing{% endif %}">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            Pre-Inspection
+                            {% if pre_inspection %}
+                                <span class="badge {% if pre_inspection.status == 'completed' %}bg-success{% else %}bg-warning text-dark{% endif %} float-end">
+                                    {{ pre_inspection.get_status_display }}
+                                </span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if pre_inspection %}
+                            <p class="mb-2">
+                                <strong>Date:</strong> {{ pre_inspection.inspection_date }}<br>
+                                <strong>Inspector:</strong> {{ pre_inspection.inspector.name|default:"Unknown" }}
+                            </p>
+                            {% if pre_inspection.site_conditions %}
+                                <p class="small text-muted mb-2">{{ pre_inspection.site_conditions|truncatewords:20 }}</p>
+                            {% endif %}
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'view_inspection' pre_inspection.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                                <a href="{% url 'edit_inspection' pre_inspection.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-3">No pre-inspection recorded yet.</p>
+                            <a href="{% url 'create_inspection' job.id 'pre' %}" class="btn btn-primary">
+                                Start Pre-Inspection
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Post-Inspection -->
+            <div class="col-md-6">
+                <div class="card inspection-card {% if post_inspection %}{% if post_inspection.status == 'completed' %}completed{% else %}draft{% endif %}{% else %}missing{% endif %}">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            Post-Inspection
+                            {% if post_inspection %}
+                                <span class="badge {% if post_inspection.status == 'completed' %}bg-success{% else %}bg-warning text-dark{% endif %} float-end">
+                                    {{ post_inspection.get_status_display }}
+                                </span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if post_inspection %}
+                            <p class="mb-2">
+                                <strong>Date:</strong> {{ post_inspection.inspection_date }}<br>
+                                <strong>Inspector:</strong> {{ post_inspection.inspector.name|default:"Unknown" }}
+                            </p>
+                            {% if post_inspection.work_completed %}
+                                <p class="small text-muted mb-2">{{ post_inspection.work_completed|truncatewords:20 }}</p>
+                            {% endif %}
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'view_inspection' post_inspection.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                                <a href="{% url 'edit_inspection' post_inspection.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-3">No post-inspection recorded yet.</p>
+                            <a href="{% url 'create_inspection' job.id 'post' %}" class="btn btn-success">
+                                Start Post-Inspection
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <a href="{% url 'worker_calendar' %}" class="btn btn-outline-secondary">Back to Calendar</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -179,6 +179,9 @@ AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
 AXES_ENABLE_ADMIN = True
 AXES_VERBOSE = True
 
+# Google Maps API Key (for auto-distance calculation)
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='')
+
 # Production Security Settings
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
